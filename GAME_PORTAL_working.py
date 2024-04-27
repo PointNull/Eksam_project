@@ -232,7 +232,7 @@ class pong(Frame):
 
     def returnButton(self):
         self.menuReturn = Button(self, text="back to menu", background="white", height=2, width=10, command=self.navReturn)
-        self.menuReturn.grid(column=0, row=5, columnspan=1, rowspan=2,  sticky='swen')
+        self.menuReturn.grid(column=0, row=4, columnspan=1, rowspan=2,  sticky='swen')
 
     #funktion som navigere tilbage til hovedmenu (Frame)
     def navReturn(self):
@@ -343,14 +343,14 @@ class PongGame:
             pygame.draw.rect(SCREEN, "white", bot)
             pygame.draw.circle(SCREEN, 'white', ball.center, 5)
 
-            SCREEN.blit(player_score_text, (WIDTH/2+25, 25))
-            SCREEN.blit(bot_score_text, (WIDTH/2-25, 25))
+            SCREEN.blit(player_score_text, (WIDTH/2-25, 25))
+            SCREEN.blit(bot_score_text, (WIDTH/2+25, 25))
 
             #updatere spillet med 300 ticks
             pygame.display.update()
             CLOCK.tick(300)
 
-
+        
 
 #Frame til potentielt tredje spil
 class TEST(Frame):
