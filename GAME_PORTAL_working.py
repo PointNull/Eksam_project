@@ -81,7 +81,6 @@ class Start(Frame):
 class aim_Lab(Frame):
     def __init__(self, Controller):
         Frame.__init__(self, Controller)
-        self.Controller = Controller
         self.returnButton()
         for i in range(5):
             self.grid_rowconfigure(i, weight=1)
@@ -220,7 +219,6 @@ class AimLabGame:
 class pong(Frame):
     def __init__(self, Controller):
         Frame.__init__(self, Controller)
-        self.Controller = Controller
         self.returnButton()
         
         for i in range(5):
@@ -239,135 +237,143 @@ class pong(Frame):
         self.Controller.menu.tkraise()
 
     def start_Pong(self):
-        PongGame().run_game()
+        game = PongGame(800, 500)
+        game.run()
 
-#indfør spillet herunder
+
+class Paddle(pygame.Rect):
+    def __init__(self, x, y, width, height):
+        super().__init__(x, y, width, height)
+        self.speed = 2
+
+    def move_up(self):
+        if self.top > 0:
+            self.top -= self.speed
+
+    def move_down(self, screen_height):
+        if self.bottom < screen_height:
+            self.bottom += self.speed
+
+class Ball(pygame.Rect):
+    def __init__(self, x, y, radius):
+        super().__init__(x, y, radius * 2, radius * 2)
+        self.radius = radius
+        self.x_speed = 1
+        self.y_speed = 1
+
+    def move(self):
+        self.x += self.x_speed
+        self.y += self.y_speed
+
+    def reset(self, screen_width, screen_height):
+        self.center = (screen_width // 2, screen_height // 2)
+        self.x_speed = random.choice([-1, 1])
+        self.y_speed = random.choice([-1, 1])
+
+    def x_velocity(self):
+        self.x_speed *= -1
+
+    def y_velocity(self):
+        self.y_speed *= -1
+
+class Bot(Paddle):
+    def __init__(self, x, y, width, height):
+        super().__init__(x, y, width, height)
+
+    def track_ball(self, ball, screen_height):
+        if self.top < ball.centery and self.bottom < screen_height:
+            self.move_down(screen_height)
+        if self.bottom > ball.centery and self.top > 0:
+            self.move_up()
+
 class PongGame:
-    def __init__(self):
-        self.running = False
-
-    def run_game(self):
-        self.running = True
-        # Initialize Pygame
+    def __init__(self, screen_width, screen_height):
         pygame.init()
-
-        #defineret vores vindue når spillet starter
-        WIDTH, HEIGHT = 800, 500
-        
-        FONT = pygame.font.SysFont("Consolas", int(WIDTH/20))
-
-        #størrelsen på spillet når det starter (Starter med det samme spillet åbner) 
-        SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-        #titel på vores vindue
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Pong!")
-        CLOCK = pygame.time.Clock()
-        
-        #Paddles - vores spiller og computer visuelt
-        player = pygame.Rect(50, HEIGHT/2-25, 5,75) #størrelsen på vores paddles
-        bot = pygame.Rect(WIDTH-50, HEIGHT/2-25, 5, 75)
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.SysFont("Consolas", int(screen_width / 20))
+        self.player = Paddle(50, screen_height // 2 - 25, 5, 75)
+        self.bot = Bot(screen_width - 50, screen_height // 2 - 25, 5, 75)
+        self.ball = Ball(screen_width // 2 - 5, screen_height // 2 - 5, 5)
+        self.player_score = 0
+        self.bot_score = 0
 
-        #bolden - 
-        ball = pygame.Rect(WIDTH/2-5, HEIGHT/2-5, 10, 10) #størrelsen på bolden
-        #farten på bolden i x- og y-aksen 
-        x_speed, y_speed = 1, 1 #hvis x=1 så rykker den til højre. Hvis x=-1 så rykker den til venstre. derved y=1 ned og y=-1 op
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-        player_score, bot_score = 0, 0 #starter pointsystemet med 0-0
+    def handle_input(self):
+        keys_pressed = pygame.key.get_pressed()
+        if keys_pressed[pygame.K_UP]:
+            self.player.move_up()
+        if keys_pressed[pygame.K_DOWN]:
+            self.player.move_down(self.screen_height)
 
-        #"while-loop" som kører mens programmet er igang
+    def update_game(self):
+        self.ball.move()
+
+        # Ball collision detection
+        if self.ball.top <= 0 or self.ball.bottom >= self.screen_height:
+            self.ball.y_velocity()
+
+        if self.ball.right >= self.screen_width:
+            self.bot_score += 1  # Increment bot's score when ball goes off right side
+            self.ball.reset(self.screen_width, self.screen_height)
+
+        if self.ball.left <= 0:
+            self.player_score += 1  # Increment player's score when ball goes off left side
+            self.ball.reset(self.screen_width, self.screen_height)
+
+        # Paddle collision detection
+        if self.player.left - self.ball.radius <= self.ball.left <= self.player.left and self.ball.centery in range(self.player.top, self.player.bottom):
+            self.ball.x_velocity()
+
+        if self.bot.right + self.ball.radius >= self.ball.right >= self.bot.right and self.ball.centery in range(self.bot.top, self.bot.bottom):
+            self.ball.x_velocity()
+
+        # Bot AI
+        self.bot.track_ball(self.ball, self.screen_height)
+
+
+    def draw_game(self):
+        self.screen.fill("black")
+        pygame.draw.rect(self.screen, "white", self.player)
+        pygame.draw.rect(self.screen, "white", self.bot)
+        pygame.draw.circle(self.screen, "white", self.ball.center, self.ball.radius)
+
+        player_score_text = self.font.render(str(self.player_score), True, "white")
+        bot_score_text = self.font.render(str(self.bot_score), True, "white")
+        self.screen.blit(player_score_text, (self.screen_width // 2 + 25, 25))
+        self.screen.blit(bot_score_text, (self.screen_width // 2 - 25, 25))
+
+        pygame.display.update()
+
+    def run(self):
         while True:
-            
-            #movement for player
-            keys_pressed = pygame.key.get_pressed()
-
-            #movements opad - Dette opdatere også positionen for vores paddles
-            if keys_pressed[pygame.K_UP]: #definere hvilken key på tastaturet
-                if player.top > 0: #begrænser hvor højt vores paddle kan gå op
-                    player.top -=2 #hvor højt vores paddle går op pr. gang man trykker
-            #movement nedad
-            if keys_pressed[pygame.K_DOWN]: 
-                if player.bottom < HEIGHT: 
-                    player.bottom +=2
-            
-            #afslutter vores program uden at det opstår errors
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-
-            #boldens logik
-            #top og bund detection -  sørger for at bolden forbilver inden for vores vindue
-            if ball.y >= HEIGHT: #Hvis boldens y-koordinat er større eller lig højden af vinduet så skal den ændre sin retning fra op til ned (-1)
-                y_speed = -1
-            if ball.y <= 0: #Hvis boldens y-koordinat er større eller lig bunden af vinduet så skal den ændre sin retning fra ned til op (1)
-                y_speed = 1
-            
-            #højre og venstre detection - sørger for at bolden bliver centreret hvis der bliver scoret eller skifter retning hvis den rammer en paddle
-            if ball.x >= WIDTH: #hvis bolden x-koordinat er større end/lig med vinduet (højre side)
-                player_score += 1 #tilføjer point
-                ball.center = (WIDTH/2, HEIGHT/2) # centrere vores bold efter der er blevet scoret
-                x_speed, y_speed = random.choice([1, -1]), random.choice([1, -1]) #når bolden centreres sendes den i en tilfældig retning
-            #hvis computer scorer
-            if ball.x <= 0:
-                bot_score += 1
-                ball.center = (WIDTH/2, HEIGHT/2) # centrere vores bold efter der er blevet scoret
-                x_speed, y_speed = random.choice([1, -1]), random.choice([1, -1]) #når bolden centreres sendes den i en tilfældig retning
-        
-            #padlle collision detection
-            if player.x - ball.width <= ball.x <= player.x and ball.y in range(player.top-ball.width, player.bottom+ball.width):
-                x_speed = 1
-            if bot.x - ball.width <= ball.x <= bot.x and ball.y in range(bot.top-ball.width, bot.bottom+ball.width):
-                x_speed = -1
-
-
-            #score-system
-            
-            #visuelt vores score-system
-            player_score_text = FONT.render(str(player_score), True, 'white')
-            bot_score_text = FONT.render(str(bot_score), True, 'white')
-
-            #boldens movement som også bliver opdateret imens programmet kører
-            ball.x += x_speed *1
-            ball.y += y_speed *1
-
-            #bot-paddle-ai (meget simpel - umulig sværhedsgrad)
-            if bot.y < ball.y and bot.bottom < HEIGHT: #følger efter boldens y-koordinat
-                bot.top += 1
-            if bot.bottom > ball.y and bot.top > 0:
-                bot.bottom += -1
-
-            #opdatere vores skrærm så ting der bevæger sig ikke forbliver på skræmen når de bevæger sig.
-            SCREEN.fill('black')
-        
-            #tegner vores paddles, bolden og score-system
-            pygame.draw.rect(SCREEN, "white", player)
-            pygame.draw.rect(SCREEN, "white", bot)
-            pygame.draw.circle(SCREEN, 'white', ball.center, 5)
-
-            SCREEN.blit(player_score_text, (WIDTH/2-25, 25))
-            SCREEN.blit(bot_score_text, (WIDTH/2+25, 25))
-
-            #updatere spillet med 300 ticks
-            pygame.display.update()
-            CLOCK.tick(300)
-
-        
+            self.handle_events()
+            self.handle_input()
+            self.update_game()
+            self.draw_game()
+            self.clock.tick(300)
 
 #Frame til potentielt tredje spil
 class TEST(Frame):
     def __init__(self, Controller):
         Frame.__init__(self, Controller)
-        self.Controller = Controller
         self.returnButton()
         for i in range(5):
             self.grid_rowconfigure(i, weight=1)
             self.grid_columnconfigure(i, weight=1)
 
-        
-
         self.skærm = Label(self, text=" SKÆRM til spil ", background="cyan", fg='black')
         self.skærm.grid(column=0, row=0, columnspan=5, rowspan=4, sticky='nsew')
 
-        
+    
 
     def returnButton(self):
         self.menuReturn = Button(self, text="back to menu", background="white", height=2, width=10, command=self.navReturn)
@@ -381,5 +387,3 @@ class TEST(Frame):
 
 if __name__ == '__main__':
     main()
-
-
